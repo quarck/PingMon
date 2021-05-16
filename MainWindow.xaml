@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid x:Name="grid">
-        <TextBox x:Name="hostName" HorizontalAlignment="Left" Height="41" Margin="566,379,0,0" TextWrapping="Wrap" Text="hostname" VerticalAlignment="Top" Width="138" FontSize="14"/>
+        <TextBox x:Name="hostName" HorizontalAlignment="Left" Height="41" Margin="566,379,0,0" TextWrapping="Wrap" Text="192.168.68.1" VerticalAlignment="Top" Width="138" FontSize="14"/>
         <Button x:Name="buttonRun" Content="Run" HorizontalAlignment="Left" Margin="709,379,-0.4,0" Width="85" Click="buttonRun_Click" FontSize="14"/>
         <Label x:Name="stats" Content="" HorizontalAlignment="Left" Margin="10,360,0,0" VerticalAlignment="Top" Width="556" Height="60"/>
 

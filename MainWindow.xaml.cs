@@ -85,8 +85,10 @@ namespace PingMonitor
 
         private SolidColorBrush brushRed = new SolidColorBrush(new Color { R = 192, G = 64, B = 64, A = 200 });
         private SolidColorBrush brushGreen = new SolidColorBrush(new Color { R = 64, G = 192, B = 64, A = 200 });
+        private SolidColorBrush brushBlack = new SolidColorBrush(new Color { R = 0, G = 0, B = 0, A = 255 });
         private Line[] dataViewRed = new Line[NUM_HISTORY_ENTRIES];
         private Line[] dataViewGreen = new Line[NUM_HISTORY_ENTRIES];
+        private Line[] dataViewBlack= new Line[NUM_HISTORY_ENTRIES];
 
         public MainWindow()
         {
@@ -122,28 +124,52 @@ namespace PingMonitor
                         Y2 = MAX_Y
                     };
 
+                dataViewBlack[i] =
+                    new Line
+                    {
+                        Stroke = brushBlack,
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        VerticalAlignment = VerticalAlignment.Top,
+                        StrokeThickness = (float)X_STEP,
+                        X1 = MARGIN_LEFT + i * X_STEP,
+                        Y1 = MAX_Y,
+                        X2 = MARGIN_LEFT + i * X_STEP,
+                        Y2 = MAX_Y
+                    };
+
+
                 grid.Children.Add(dataViewRed[i]);
                 grid.Children.Add(dataViewGreen[i]);
+                grid.Children.Add(dataViewBlack[i]);
             }
+        }
+
+        private void hideAllAt(int idx)
+        {
+            dataViewRed[idx].Y1 = MAX_Y;
+            dataViewGreen[idx].Y1 = MAX_Y;
+            dataViewBlack[idx].Y1 = MAX_Y;
         }
 
         private void setAt(int idx, bool success, uint timeMillis)
         {
             bool isRed = !success || timeMillis > MAX_GREEN_PING;
 
-            if (isRed)
+            hideAllAt(idx);
+            if (success)
             {
-                dataViewGreen[idx].Y1 = MAX_Y;
-                if (!success)
-                    dataViewRed[idx].Y1 = 0;
+                if (timeMillis <= MAX_GREEN_PING)
+                {
+                    dataViewGreen[idx].Y1 = Math.Max(MAX_Y - timeMillis, 0);
+                }
                 else
+                {
                     dataViewRed[idx].Y1 = Math.Max(MAX_Y - timeMillis, 0);
-
+                }
             }
             else
             {
-                dataViewRed[idx].Y1 = MAX_Y;
-                dataViewGreen[idx].Y1 = MAX_Y-timeMillis;
+                dataViewBlack[idx].Y1 = 0;
             }
         }
 
@@ -157,7 +183,7 @@ namespace PingMonitor
             string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             string folder = $"{documents}\\pingLog";
             Directory.CreateDirectory(folder);
-            logFile = $"{folder}\\{DateTime.Now:yyyyMMdd-HHmm}.csv";
+            logFile = $"{folder}\\{DateTime.Now:yyyyMMdd-HHmmss}.csv";
             File.AppendAllText(logFile, "Date,Time,Host,Success,PingTime,Ttl\n");
 
             new Thread(this.PingThread).Start();
@@ -183,9 +209,9 @@ namespace PingMonitor
                     }
                 }
 
-                float pctLost = (float)(numSent - numReceived) / (float)numSent;
+                float pctLost = 100.0f * (float)(numSent - numReceived) / (float)numSent;
                 ulong avg = (numReceived > 0) ? (avgAcc / (ulong)numReceived) : 0;
-                string statText = $"{numSent} packets sent, {numReceived} received ({pctLost:F02}% lost)\nMin={minTime}ms, Max={maxTime}ms, avg={avg}ms";
+                string statText = $"{numSent} packets sent, {numReceived} received ({pctLost:F03}% lost)\nMin={minTime}ms, Max={maxTime}ms, avg={avg}ms";
                 stats.Content = statText;
             }
         }
