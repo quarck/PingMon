@@ -218,30 +218,45 @@ namespace PingMonitor
 
         private void PingServer()
         {
-            Ping pingSender = new Ping();
-            PingOptions options = new PingOptions();
+            bool success = false;
+            PingReply reply = null;
 
-            // Use the default Ttl value which is 128,
-            // but change the fragmentation behavior.
-            options.DontFragment = true;
+            try
+            {
+                Ping pingSender = new Ping();
+                PingOptions options = new PingOptions();
 
-            // Create a buffer of 32 bytes of data to be transmitted.
-            string pingData = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-            byte[] buffer = Encoding.ASCII.GetBytes(pingData);
-            PingReply reply = pingSender.Send(destinationHost, PING_TIMEOUT, buffer, options);
+                // Use the default Ttl value which is 128,
+                // but change the fragmentation behavior.
+                options.DontFragment = true;
 
-            bool success = reply.Status == IPStatus.Success;
+                // Create a buffer of 32 bytes of data to be transmitted.
+                string pingData = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+                byte[] buffer = Encoding.ASCII.GetBytes(pingData);
+                reply = pingSender.Send(destinationHost, PING_TIMEOUT, buffer, options);
+
+                success = reply.Status == IPStatus.Success;
+            }
+            catch (Exception)
+            {
+            }
 
             var res = new PingSummaryEntry
             {
                 Success = success,
-                RoundTripMillis = success ? (uint)reply.RoundtripTime : 30_000,
-                TimeToLive = success ? (uint)reply.Options.Ttl : 0
+                RoundTripMillis = (uint)(reply?.RoundtripTime ?? 0),
+                TimeToLive = (uint)(reply?.Options?.Ttl ?? 0),
             };
 
             lock (dataLock)
             {
-                File.AppendAllText(logFile, $"{DateTime.Now:yyyy-MM-dd,HH:mm:ss},{destinationHost},{res.Success},{reply.RoundtripTime},{reply?.Options?.Ttl ?? 0}\n");
+                File.AppendAllText(logFile, 
+                    $"{DateTime.Now:yyyy-MM-dd,HH:mm:ss}," +
+                    $"{destinationHost}," +
+                    $"{res.Success}," +
+                    $"{reply?.RoundtripTime??10000000}," +
+                    $"{reply?.Options?.Ttl ?? 0}\n"
+                    );
                 data[w_idx % NUM_HISTORY_ENTRIES] = res;
                 w_idx++;
 
