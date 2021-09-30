@@ -64,10 +64,13 @@ namespace PingMonitor
     public partial class MainWindow : Window
     {
         const int NUM_HISTORY_ENTRIES = 256;
+
         const int MAX_Y = 350;
         const int X_STEP = 3;
         const int MARGIN_LEFT = 10;
         const int PING_TIMEOUT = 3000;
+
+        const double LOG_SCALE = 95.0;
 
         const uint MAX_GREEN_PING = 50;
 
@@ -83,18 +86,80 @@ namespace PingMonitor
         private string destinationHost = "";
         private string logFile = "";
 
-        private SolidColorBrush brushRed = new SolidColorBrush(new Color { R = 192, G = 64, B = 64, A = 200 });
-        private SolidColorBrush brushGreen = new SolidColorBrush(new Color { R = 64, G = 192, B = 64, A = 200 });
+        private SolidColorBrush brushRed = new SolidColorBrush(new Color { R = 230, G = 64, B = 64, A = 220 });
+        private SolidColorBrush brushGreen = new SolidColorBrush(new Color { R = 64, G = 192, B = 64, A = 220 });
         private SolidColorBrush brushBlack = new SolidColorBrush(new Color { R = 0, G = 0, B = 0, A = 255 });
+        private SolidColorBrush brushBlue = new SolidColorBrush(new Color { R = 32, G = 32, B = 200, A = 190 });
+
         private Line[] dataViewRed = new Line[NUM_HISTORY_ENTRIES];
         private Line[] dataViewGreen = new Line[NUM_HISTORY_ENTRIES];
         private Line[] dataViewBlack= new Line[NUM_HISTORY_ENTRIES];
 
+        private double[] grid_lines = new double[] { 1, 10, 100, 1000, 10000 };
+
+        //private TextBlock[] gridLabels = new TextBlock[NUM_HOR_GRID_LINES];
+
+
         public MainWindow()
         {
             InitializeComponent();
+            DrawGrid();
+            CreateLines();
+        }
+        private static double ToLogScale(double val) => (LOG_SCALE * Math.Log10(Math.Max(val, 1)));
 
-            for (int i = 0; i < NUM_HISTORY_ENTRIES; ++ i)
+        private void DrawGrid()
+        {
+            double? prev_grid_pos = null;
+
+            double x_left = MARGIN_LEFT;
+            double x_right = MARGIN_LEFT + NUM_HISTORY_ENTRIES * X_STEP;
+
+            foreach (var grid_pos in grid_lines)
+            {
+                if (prev_grid_pos.HasValue)
+                {
+                    for (double sub_grid_pos = prev_grid_pos.Value; sub_grid_pos <= grid_pos; sub_grid_pos += prev_grid_pos.Value)
+                    {
+                        var sub_y = MAX_Y - ToLogScale(sub_grid_pos);
+
+                        var sub_line = new Line
+                        {
+                            Stroke = brushBlue,
+                            HorizontalAlignment = HorizontalAlignment.Left,
+                            VerticalAlignment = VerticalAlignment.Top,
+                            StrokeThickness = 0.3,
+                            X1 = x_left,
+                            Y1 = sub_y,
+                            X2 = x_right,
+                            Y2 = sub_y
+                        };
+                        grid.Children.Add(sub_line);
+                    }
+                }
+
+                var y = MAX_Y - ToLogScale(grid_pos);
+
+                var line = new Line
+                {
+                    Stroke = brushBlack,
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    StrokeThickness = 0.3,
+                    X1 = x_left,
+                    Y1 = y,
+                    X2 = x_right,
+                    Y2 = y
+                };
+                grid.Children.Add(line);
+
+                prev_grid_pos = grid_pos;
+            }
+        }
+
+        private void CreateLines()
+        {
+            for (int i = 0; i < NUM_HISTORY_ENTRIES; ++i)
             {
                 data[i] = new PingSummaryEntry { Success = false, RoundTripMillis = 0, TimeToLive = 0 };
 
@@ -153,19 +218,20 @@ namespace PingMonitor
 
         private void setAt(int idx, bool success, uint timeMillis)
         {
-            bool isRed = !success || timeMillis > MAX_GREEN_PING;
+            bool isGreen = success && timeMillis <= MAX_GREEN_PING;
+            bool isRed = success && timeMillis > MAX_GREEN_PING;
 
             hideAllAt(idx);
-            if (success)
+
+            int log_rtt_time = (int)ToLogScale(timeMillis);
+
+            if (isGreen)
             {
-                if (timeMillis <= MAX_GREEN_PING)
-                {
-                    dataViewGreen[idx].Y1 = Math.Max(MAX_Y - timeMillis, 0);
-                }
-                else
-                {
-                    dataViewRed[idx].Y1 = Math.Max(MAX_Y - timeMillis, 0);
-                }
+                dataViewGreen[idx].Y1 = Math.Max(MAX_Y - log_rtt_time, 0);
+            }
+            else if (isRed)
+            {
+                dataViewRed[idx].Y1 = Math.Max(MAX_Y - log_rtt_time, 0);
             }
             else
             {
@@ -183,10 +249,13 @@ namespace PingMonitor
             string documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             string folder = $"{documents}\\pingLog";
             Directory.CreateDirectory(folder);
-            logFile = $"{folder}\\{DateTime.Now:yyyyMMdd-HHmmss}.csv";
+            logFile = $"{folder}\\{DateTime.Now:yyyyMMdd-HHmmss}-{destinationHost}.csv";
             File.AppendAllText(logFile, "Date,Time,Host,Success,PingTime,Ttl\n");
 
             new Thread(this.PingThread).Start();
+
+            this.Title = $"Ping {hostName.Text}, timeout {PING_TIMEOUT}";
+            hostName.Visibility = Visibility.Hidden;
         }
 
         private void UpdateUI()
@@ -211,7 +280,7 @@ namespace PingMonitor
 
                 float pctLost = 100.0f * (float)(numSent - numReceived) / (float)numSent;
                 ulong avg = (numReceived > 0) ? (avgAcc / (ulong)numReceived) : 0;
-                string statText = $"{numSent} packets sent, {numReceived} received ({pctLost:F03}% lost)\nMin={minTime}ms, Max={maxTime}ms, avg={avg}ms";
+                string statText = $"{numSent} packets sent, {numReceived} received ({pctLost:F03}% lost)\nMin={minTime}ms, Max={maxTime}ms, avg={avg}ms\nLog file {logFile}";
                 stats.Content = statText;
             }
         }
