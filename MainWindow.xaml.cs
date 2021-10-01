@@ -258,6 +258,21 @@ namespace PingMonitor
             hostName.Visibility = Visibility.Hidden;
         }
 
+        private uint getMedian()
+        {
+            int num_ent = w_idx < NUM_HISTORY_ENTRIES ? w_idx : NUM_HISTORY_ENTRIES;
+
+            var times = new uint[num_ent];
+            for (int i = 0; i < num_ent; ++ i)
+            {
+                times[i] = data[i].RoundTripMillis;
+            }
+
+            Array.Sort(times);
+
+            return times[num_ent / 2];
+        }
+
         private void UpdateUI()
         {
             lock (dataLock)
@@ -280,7 +295,8 @@ namespace PingMonitor
 
                 float pctLost = 100.0f * (float)(numSent - numReceived) / (float)numSent;
                 ulong avg = (numReceived > 0) ? (avgAcc / (ulong)numReceived) : 0;
-                string statText = $"{numSent} packets sent, {numReceived} received ({pctLost:F03}% lost)\nMin={minTime}ms, Max={maxTime}ms, avg={avg}ms\nLog file {logFile}";
+                uint median = getMedian();
+                string statText = $"{numSent} packets sent, {numReceived} received ({pctLost:F03}% lost)\nMin={minTime}ms, Max={maxTime}ms, avg={avg}ms, median={median}\nLog file {logFile}";
                 stats.Content = statText;
             }
         }
